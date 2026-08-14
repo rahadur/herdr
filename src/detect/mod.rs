@@ -1210,12 +1210,12 @@ mod tests {
         for argv in [
             vec![
                 "node",
-                "/Users/user/.nvm/versions/node/v24.16.0/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+                "/usr/local/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
             ],
             vec![
                 "node",
                 "--expose-gc",
-                "/Users/user/.nvm/versions/node/v24.16.0/lib/node_modules/@qwen-code/qwen-code/cli.js",
+                "/usr/local/lib/node_modules/@qwen-code/qwen-code/cli.js",
             ],
         ] {
             let job = crate::platform::ForegroundJob {
