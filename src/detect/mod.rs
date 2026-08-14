@@ -1217,6 +1217,14 @@ mod tests {
                 "--expose-gc",
                 "/usr/local/lib/node_modules/@qwen-code/qwen-code/cli.js",
             ],
+            vec![
+                "node.exe",
+                r"C:\Users\user\AppData\Roaming\npm\node_modules\@qwen-code\qwen-code\cli-entry.js",
+            ],
+            vec![
+                "node.exe",
+                r"C:\Users\user\AppData\Roaming\npm\node_modules\@qwen-code\qwen-code\cli.js",
+            ],
         ] {
             let job = crate::platform::ForegroundJob {
                 process_group_id: 123,
@@ -1238,6 +1246,14 @@ mod tests {
                 "node",
                 "--expose-gc",
                 "/Users/user/.local/lib/qwen-code/lib/cli.js",
+            ],
+            vec![
+                "node.exe",
+                r"C:\Users\user\AppData\Local\qwen-code\lib\cli-entry.js",
+            ],
+            vec![
+                "node.exe",
+                r"C:\Users\user\AppData\Local\qwen-code\lib\cli.js",
             ],
         ] {
             let job = crate::platform::ForegroundJob {
