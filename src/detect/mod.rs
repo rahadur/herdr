@@ -747,6 +747,21 @@ fn agent_name_from_known_package_path(path: &str) -> Option<String> {
         if window == ["node_modules", "@letta-ai", "letta-code", "letta"] {
             return Some(agent_label(Agent::Letta).to_string());
         }
+        if window[0] == "node_modules"
+            && window[1] == "@qwen-code"
+            && window[2] == "qwen-code"
+            && matches!(window[3].as_str(), "cli" | "cli-entry")
+        {
+            return Some(agent_label(Agent::Qwen).to_string());
+        }
+    }
+    for window in components.windows(3) {
+        if window[0] == "qwen-code"
+            && window[1] == "lib"
+            && matches!(window[2].as_str(), "cli" | "cli-entry")
+        {
+            return Some(agent_label(Agent::Qwen).to_string());
+        }
     }
     None
 }
@@ -1176,6 +1191,53 @@ mod tests {
             vec![
                 "node.exe",
                 r"C:\Users\user\AppData\Roaming\npm\node_modules\@qwen-code\qwen-code\dist\index.js",
+            ],
+        ] {
+            let job = crate::platform::ForegroundJob {
+                process_group_id: 123,
+                processes: vec![foreground_process(123, "MainThread", &argv)],
+            };
+
+            assert_eq!(
+                identify_agent_in_job(&job),
+                Some((Agent::Qwen, "qwen".to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn identify_agent_in_job_detects_qwen_npm_cli_layout() {
+        for argv in [
+            vec![
+                "node",
+                "/Users/user/.nvm/versions/node/v24.16.0/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+            ],
+            vec![
+                "node",
+                "--expose-gc",
+                "/Users/user/.nvm/versions/node/v24.16.0/lib/node_modules/@qwen-code/qwen-code/cli.js",
+            ],
+        ] {
+            let job = crate::platform::ForegroundJob {
+                process_group_id: 123,
+                processes: vec![foreground_process(123, "MainThread", &argv)],
+            };
+
+            assert_eq!(
+                identify_agent_in_job(&job),
+                Some((Agent::Qwen, "qwen".to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn identify_agent_in_job_detects_qwen_standalone_install() {
+        for argv in [
+            vec!["node", "/Users/user/.local/lib/qwen-code/lib/cli-entry.js"],
+            vec![
+                "node",
+                "--expose-gc",
+                "/Users/user/.local/lib/qwen-code/lib/cli.js",
             ],
         ] {
             let job = crate::platform::ForegroundJob {
