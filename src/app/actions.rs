@@ -1364,6 +1364,7 @@ impl AppState {
 
             let ws = &mut self.workspaces[ws_idx];
             if ws.cached_identity_cwd != result.resolved_identity_cwd {
+                ws.identity_cwd = result.resolved_identity_cwd.clone();
                 ws.cached_identity_cwd = result.resolved_identity_cwd;
             }
             if ws.cached_auto_label != result.auto_label {
@@ -2752,6 +2753,31 @@ mod tests {
 
         assert!(changed);
         assert_eq!(state.workspaces[0].worktree_space().cloned(), membership);
+    }
+
+    #[test]
+    fn apply_workspace_git_statuses_updates_identity_cwd() {
+        let mut state = app_with_workspaces(&["one"]);
+        let workspace_id = state.workspaces[0].id.clone();
+        let original_cwd = state.workspaces[0].resolved_identity_cwd().unwrap();
+        assert_eq!(state.workspaces[0].identity_cwd, original_cwd);
+
+        let terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
+        state.apply_workspace_git_statuses(
+            &terminal_runtimes,
+            vec![WorkspaceGitStatus {
+                workspace_id,
+                resolved_identity_cwd: original_cwd.clone(),
+                status_cache_key: original_cwd.clone(),
+                demand: crate::workspace::GitStatusRefreshDemand::ALL,
+                auto_label: "one".into(),
+                branch: Some("main".into()),
+                ahead_behind: None,
+                space: None,
+            }],
+        );
+
+        assert_eq!(state.workspaces[0].identity_cwd, original_cwd);
     }
 
     #[test]
