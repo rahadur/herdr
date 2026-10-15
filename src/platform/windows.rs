@@ -2362,7 +2362,16 @@ fn is_git_bash_executable_path(path: &std::path::Path) -> bool {
     let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
         return false;
     };
-    if !file_name.eq_ignore_ascii_case("bash.exe") || !path.is_absolute() || !path.is_file() {
+    // Accept both "bash.exe" and bare "bash" (Windows users may configure the
+    // shell path without an extension; CreateProcessW appends .exe implicitly).
+    let path = if file_name.eq_ignore_ascii_case("bash") && !file_name.contains('.') {
+        std::borrow::Cow::Owned(path.with_extension("exe"))
+    } else if file_name.eq_ignore_ascii_case("bash.exe") {
+        std::borrow::Cow::Borrowed(path)
+    } else {
+        return false;
+    };
+    if !path.is_absolute() || !path.is_file() {
         return false;
     }
 
@@ -4569,6 +4578,57 @@ mod tests {
     }
 
     #[test]
+    fn windows_escaped_qwen_detected_via_sh_shim_in_git_bash() {
+        // Simulates: Git Bash pane shell (PID 10), an orphaned sh.exe running
+        // the npm qwen shim (PID 20, parent exited → parent 99), and node.exe
+        // (PID 30) as a child of sh.exe with the cli-entry.js path.
+        let snapshot = super::ProcessSnapshot::new(vec![
+            test_entry(
+                10,
+                1,
+                "bash.exe",
+                &[r"C:\Program Files\Git\bin\bash.exe"],
+            ),
+            test_entry(
+                20,
+                99,
+                "sh.exe",
+                &[
+                    r"C:\Program Files\Git\usr\bin\sh.exe",
+                    "/c/nvm4w/nodejs/qwen",
+                    "--resume",
+                    "c2ce8a4b",
+                ],
+            ),
+            test_entry(
+                30,
+                20,
+                "node.exe",
+                &[
+                    r"C:\nvm4w\nodejs\node.exe",
+                    r"C:\nvm4w\nodejs/node_modules/@qwen-code/qwen-code/cli-entry.js",
+                    "--resume",
+                    "c2ce8a4b",
+                ],
+            ),
+        ]);
+
+        let job = super::select_pane_foreground_job_from_snapshot_with_runtime_inspection(
+            10,
+            &snapshot,
+            |_| true,
+            |_| Some("pane-a".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            job.process_group_id, 20,
+            "should select the orphaned sh.exe running qwen shim"
+        );
+        assert_eq!(job.processes[0].name, "sh.exe");
+    }
+
+    #[test]
     fn windows_process_tree_skips_runtime_inspection_for_non_git_bash_shell() {
         let entries = vec![
             test_entry(10, 1, "powershell.exe", &["powershell.exe"]),
@@ -5490,6 +5550,18 @@ mod tests {
             .get_env(super::PANE_RUNTIME_MARKER_ENV_VAR)
             .is_some_and(|value| !value.is_empty()));
         assert!(cmd.get_env(super::PANE_RUNTIME_MARKER_ENV_VAR).is_none());
+
+        // Bare "bash" (no .exe) — common in user configs — must also be tagged.
+        let mut bare_bash =
+            portable_pty::CommandBuilder::new(root.join("bin").join("bash"));
+        super::apply_pane_runtime_marker_platform(&mut bare_bash);
+        assert!(
+            bare_bash
+                .get_env(super::PANE_RUNTIME_MARKER_ENV_VAR)
+                .is_some_and(|value| !value.is_empty()),
+            "bare 'bash' (no .exe) should receive the runtime marker"
+        );
+
         fs::remove_dir_all(root).expect("remove Git Bash fixture");
     }
 
